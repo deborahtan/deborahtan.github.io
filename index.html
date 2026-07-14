@@ -9,7 +9,7 @@
 <body>
 <div class="wrap">
   <h1>Dentsu Conversational Analytics</h1>
-  <div class="subtitle">What conversational analytics is, a live Christmas Trendspotter, and the ecommerce analytics agent for Wax and Wave.</div>
+  <div class="subtitle">What conversational analytics is, a Christmas Trendspotter, and the an analytics agent built off the Google Conversational Analytics API.</div>
 
   <div class="tab-row">
     <button class="tab-btn active" data-tab="home">Home</button>
@@ -25,11 +25,9 @@
       <div class="headline">Ask your data a question, get a straight answer</div>
       <p class="desc">
         Conversational Analytics lets any stakeholder query data in plain English
-        and get instant, SQL backed answers. No dashboard building, no waiting
-        on an analyst, no SQL knowledge required. This site has two working
-        examples of it: a Christmas mood tracker built on Claude and web
-        research, and an ecommerce agent built on BigQuery Conversational
-        Analytics.
+        and get answers. This saves time spent on ad hoc Q&A. This site has two working
+        examples: a Christmas mood tracker built on the Trends MCP, and an analytics agent 
+        built on BigQuery Conversational Analytics API.
       </p>
     </div>
 
@@ -44,9 +42,8 @@
       <div class="card-label">Why It Benefits Users</div>
       <ul class="want-list">
         <li>Stakeholders self-serve instead of queuing for an analyst</li>
-        <li>Answers come with the logic behind them, not just a number</li>
-        <li>Follow up questions build on the last one, no re-explaining context</li>
-        <li>Faster read on sentiment and performance, closer to real time thinking</li>
+        <li>People can ask followup questions and not have to re-explain context</li>
+        <li>Faster time to insight as the data synthesises many sources</li>
       </ul>
     </div>
 
@@ -84,10 +81,7 @@
     </div>
 
     <div class="disclaimer">
-      Two different backends here on purpose. Trendspotter runs on Claude plus
-      web research through a small proxy. The ecommerce agent runs on Google
-      BigQuery Conversational Analytics through the ca-proxy Cloud Run service.
-      See README.md in this repo for the exact keys each one needs.
+    The data needs to be verified and checked, as in any other AI-derived tool. It should be sense checked before being used.
     </div>
   </div>
 
@@ -117,7 +111,7 @@
       <button class="q-chip" data-fill="trendspotter">What are people most worried about this Christmas?</button>
       <button class="q-chip" data-fill="trendspotter">What would genuinely make Christmas easier for busy households?</button>
       <button class="q-chip" data-fill="trendspotter">What's driving stress around Christmas dinner and grocery shopping?</button>
-      <button class="q-chip" data-fill="trendspotter">What are Woolworths and Foodstuffs doing for Christmas this year?</button>
+      <button class="q-chip" data-fill="trendspotter">What types of topics and trends have picked up in the last day about Christmas?</button>
     </div>
 
     <div class="chat-row">
@@ -127,12 +121,7 @@
     <div class="status-line" id="status-line-trendspotter"></div>
 
     <div class="disclaimer">
-      This runs on Claude web research today, not a tracked daily number.
-      No prompt library on this tab on purpose, the question bank above
-      covers it. Memory holds for this browser session only, refreshing
-      the page starts a new read. When a real Trends MCP is connected,
-      swap the fetch target in js/trendspotter.js, see the comment marked
-      TRENDS MCP HOOK.
+     
     </div>
 
   </div>
@@ -141,14 +130,11 @@
   <div id="panel-ecommerce" class="tab-panel">
 
     <div class="cors-note">
-      This tab calls the live ca-proxy Cloud Run service, which only accepts
-      requests from your deployed GitHub Pages domain by design. Running this
-      locally or from an unapproved origin will show a connection error, that
-      is expected.
+      If you see this error the API Key has to get updated (this is intentional for demo purposes).
     </div>
 
     <div class="chat-wrap">
-      <div class="chat-bar">Wax and Wave Ecommerce Agent</div>
+      <div class="chat-bar">Wax and Wave Analytics Demo Agent</div>
       <div class="chat-messages" id="chat-messages-ecommerce"></div>
       <div class="chat-input-row">
         <input id="chat-input-ecommerce" class="chat-input" placeholder="e.g. What was total revenue last month?" />
@@ -162,7 +148,7 @@
       <button class="q-chip" data-fill="ecommerce">What was total revenue last month?</button>
       <button class="q-chip" data-fill="ecommerce">Which channel drove the most sessions last week?</button>
       <button class="q-chip" data-fill="ecommerce">Show me conversion rate by device type</button>
-      <button class="q-chip" data-fill="ecommerce">What are the top 5 products by revenue this quarter?</button>
+      <button class="q-chip" data-fill="ecommerce">What is the dropoff rate throughout the ecommerce conversion funnel?</button>
       <button class="q-chip" data-fill="ecommerce">What is the average order value by channel?</button>
       <button class="q-chip" data-fill="ecommerce">What is our cart abandonment rate this week?</button>
     </div>
@@ -205,9 +191,9 @@
     <details class="expand-card">
       <summary>Limitations, when not to use this</summary>
       <ul class="want-list" style="margin-top:10px;">
-        <li>Complex multi step statistical modelling, use a data scientist instead</li>
-        <li>Anything needing real time data, this dataset lags 24 hours</li>
-        <li>Recurring reporting a stakeholder checks daily, build a dashboard instead</li>
+        <li>Complex and multilayered questions, this is better off with dedicated analysis</li>
+        <li>Anything needing real-time data as this updates daily</li>
+        <li>Recurring reporting a stakeholder checks daily, build a static report/dashboard instead</li>
         <li>Queries likely to exceed the 3 MB result cap or 8,192 token limit</li>
       </ul>
     </details>
