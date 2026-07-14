@@ -24,6 +24,7 @@ const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://deborahtan.github.
 app.use(cors({ origin: ALLOWED_ORIGIN }));
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const TRENDS_MCP_API_KEY = process.env.TRENDS_MCP_API_KEY;
 const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 
 const SYSTEM_PROMPT =
@@ -40,6 +41,11 @@ const SYSTEM_PROMPT =
   'click and collect, delivery promotions. Name them specifically if you ' +
   'find real information, and be honest if search results are thin rather ' +
   'than inventing detail.\n\n' +
+  'You have a trends-mcp tool available with live search and social trend ' +
+  'data (Google Search, TikTok, Reddit, and others). Use it to pull real ' +
+  'search interest and momentum for Christmas grocery shopping related terms ' +
+  'in addition to web_search, and reflect actual numbers where the tool ' +
+  'returns them rather than estimating.\n\n' +
   'Write in a warm, family and household friendly, relatable tone. Still be ' +
   'honest about real pressure points like cost of living, meal planning ' +
   'stress, and time pressure, do not sanitize those away, but frame them ' +
@@ -74,23 +80,39 @@ app.post('/trend-research', async (req, res) => {
     const messages = req.body.messages || [];
 
     // ── TRENDS MCP HOOK ──────────────────────────────────────────────
-    // When a real Trends MCP connector is ready, add it here, e.g.
-    // mcp_servers: [{ type: 'url', url: 'https://<your-trends-mcp>', name: 'trends-mcp' }]
-    // alongside or instead of the web_search tool below. Everything else
-    // in this file stays the same.
+    // trends-mcp (trendsmcp.ai) is wired in here as a real remote MCP
+    // server, alongside web_search. TRENDS_MCP_API_KEY is the API key
+    // from trendsmcp.ai, set as an env var on this Cloud Run service
+    // (same way ANTHROPIC_API_KEY is set). This feature is in beta on
+    // Anthropic's side, hence the anthropic-beta header below.
+    const tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+    const mcpServers = [];
+
+    if (TRENDS_MCP_API_KEY) {
+      mcpServers.push({
+        type: 'url',
+        url: 'https://api.trendsmcp.ai/mcp',
+        name: 'trends-mcp',
+        authorization_token: TRENDS_MCP_API_KEY
+      });
+      tools.push({ type: 'mcp_toolset', mcp_server_name: 'trends-mcp' });
+    }
+
     const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'mcp-client-2025-11-20'
       },
       body: JSON.stringify({
         model: CLAUDE_MODEL,
         max_tokens: 1800,
         system: SYSTEM_PROMPT,
         messages: messages,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }]
+        tools: tools,
+        mcp_servers: mcpServers
       })
     });
 
