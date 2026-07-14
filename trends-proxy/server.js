@@ -24,7 +24,7 @@ const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://deborahtan.github.
 app.use(cors({ origin: ALLOWED_ORIGIN }));
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const CLAUDE_MODEL = 'claude-sonnet-4-6';
+const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 
 const SYSTEM_PROMPT =
   'You are researching the emotional mood around Christmas grocery shopping ' +
