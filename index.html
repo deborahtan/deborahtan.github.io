@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dentsu Conversational Analytics</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+  <h1>Dentsu Conversational Analytics</h1>
+  <div class="subtitle">What conversational analytics is, a live Christmas Trendspotter, and the ecommerce analytics agent for Wax and Wave.</div>
+
+  <div class="tab-row">
+    <button class="tab-btn active" data-tab="home">Home</button>
+    <button class="tab-btn" data-tab="trendspotter">Christmas Trendspotter</button>
+    <button class="tab-btn" data-tab="ecommerce">Ecommerce Analytics Agent</button>
+  </div>
+
+  <!-- ══════════════ TAB 1: HOME ══════════════ -->
+  <div id="panel-home" class="tab-panel active">
+
+    <div class="card">
+      <div class="card-label">What This Is</div>
+      <div class="headline">Ask your data a question, get a straight answer</div>
+      <p class="desc">
+        Conversational Analytics lets any stakeholder query data in plain English
+        and get instant, SQL backed answers. No dashboard building, no waiting
+        on an analyst, no SQL knowledge required. This site has two working
+        examples of it: a Christmas mood tracker built on Claude and web
+        research, and an ecommerce agent built on BigQuery Conversational
+        Analytics.
+      </p>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-tile"><b>8,192 tokens</b>limit per question</div>
+      <div class="stat-tile"><b>3 MB</b>data result cap per query</div>
+      <div class="stat-tile"><b>24h lag</b>on the ecommerce dataset, not real time</div>
+      <div class="stat-tile"><b>SQL shown</b>every ecommerce answer is backed by a visible query</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Why It Benefits Users</div>
+      <ul class="want-list">
+        <li>Stakeholders self-serve instead of queuing for an analyst</li>
+        <li>Answers come with the logic behind them, not just a number</li>
+        <li>Follow up questions build on the last one, no re-explaining context</li>
+        <li>Faster read on sentiment and performance, closer to real time thinking</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-label">How It Works</div>
+      <div class="step-item">
+        <div class="step-num">01</div>
+        <div class="step-body"><b>Ask</b><span>Plain English question, the way you'd ask a colleague.</span></div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">02</div>
+        <div class="step-body"><b>Interpret</b><span>Agent applies configured instructions and glossary so it knows what your data means.</span></div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">03</div>
+        <div class="step-body"><b>Generate</b><span>Model writes the query against your connected data, shown transparently.</span></div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">04</div>
+        <div class="step-body"><b>Execute</b><span>Query runs inside your own environment, with limits to prevent runaway cost.</span></div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">05</div>
+        <div class="step-body"><b>Format</b><span>Answer comes back as text, a table, or a chart depending on the question.</span></div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">06</div>
+        <div class="step-body"><b>Continue</b><span>Session keeps context, so a follow up question just works without repeating background.</span></div>
+      </div>
+    </div>
+
+    <div class="cta-row">
+      <button class="cta-btn primary" data-goto="trendspotter">Open Christmas Trendspotter</button>
+      <button class="cta-btn" data-goto="ecommerce">Open Ecommerce Agent</button>
+    </div>
+
+    <div class="disclaimer">
+      Two different backends here on purpose. Trendspotter runs on Claude plus
+      web research through a small proxy. The ecommerce agent runs on Google
+      BigQuery Conversational Analytics through the ca-proxy Cloud Run service.
+      See README.md in this repo for the exact keys each one needs.
+    </div>
+  </div>
+
+  <!-- ══════════════ TAB 2: CHRISTMAS TRENDSPOTTER ══════════════ -->
+  <div id="panel-trendspotter" class="tab-panel">
+
+    <div class="date-tag" id="date-tag"></div>
+
+    <div id="dashboard">
+      <div class="loading"><div class="spinner"></div>Researching how New Zealanders are feeling about Christmas grocery shopping today.</div>
+    </div>
+
+    <!-- Word cloud of the words actually used in the last research answer.
+         Collapsed by default, expands on click. Built client side from the
+         same JSON the dashboard renders, no extra API call needed. -->
+    <details class="expand-card" id="wordcloud-card">
+      <summary>Word Cloud, words used in this trend read</summary>
+      <div class="wordcloud-wrap" id="wordcloud-body">
+        <span class="wc-empty">Ask a question first, the cloud builds from that answer.</span>
+      </div>
+    </details>
+
+    <div class="chip-row">
+      <div class="chip-label">Question Bank, use the below or type your own</div>
+      <button class="q-chip" data-fill="trendspotter">What's the overall Christmas mood right now?</button>
+      <button class="q-chip" data-fill="trendspotter">How is everyone feeling about Christmas shopping this year?</button>
+      <button class="q-chip" data-fill="trendspotter">What are people most worried about this Christmas?</button>
+      <button class="q-chip" data-fill="trendspotter">What would genuinely make Christmas easier for busy households?</button>
+      <button class="q-chip" data-fill="trendspotter">What's driving stress around Christmas dinner and grocery shopping?</button>
+      <button class="q-chip" data-fill="trendspotter">What are Woolworths and Foodstuffs doing for Christmas this year?</button>
+    </div>
+
+    <div class="chat-row">
+      <input id="chat-input-trendspotter" class="chat-input" placeholder="Click a question above, or type your own" />
+      <button id="chat-send-trendspotter" class="chat-send">Ask</button>
+    </div>
+    <div class="status-line" id="status-line-trendspotter"></div>
+
+    <div class="disclaimer">
+      This runs on Claude web research today, not a tracked daily number.
+      No prompt library on this tab on purpose, the question bank above
+      covers it. Memory holds for this browser session only, refreshing
+      the page starts a new read. When a real Trends MCP is connected,
+      swap the fetch target in js/trendspotter.js, see the comment marked
+      TRENDS MCP HOOK.
+    </div>
+
+  </div>
+
+  <!-- ══════════════ TAB 3: ECOMMERCE ANALYTICS AGENT ══════════════ -->
+  <div id="panel-ecommerce" class="tab-panel">
+
+    <div class="cors-note">
+      This tab calls the live ca-proxy Cloud Run service, which only accepts
+      requests from your deployed GitHub Pages domain by design. Running this
+      locally or from an unapproved origin will show a connection error, that
+      is expected.
+    </div>
+
+    <div class="chat-wrap">
+      <div class="chat-bar">Wax and Wave Ecommerce Agent</div>
+      <div class="chat-messages" id="chat-messages-ecommerce"></div>
+      <div class="chat-input-row">
+        <input id="chat-input-ecommerce" class="chat-input" placeholder="e.g. What was total revenue last month?" />
+        <button id="chat-send-ecommerce" class="chat-send">Ask</button>
+      </div>
+    </div>
+    <div class="status-line" id="status-line-ecommerce"></div>
+
+    <div class="chip-row">
+      <div class="chip-label">Question Bank, use the below or type your own</div>
+      <button class="q-chip" data-fill="ecommerce">What was total revenue last month?</button>
+      <button class="q-chip" data-fill="ecommerce">Which channel drove the most sessions last week?</button>
+      <button class="q-chip" data-fill="ecommerce">Show me conversion rate by device type</button>
+      <button class="q-chip" data-fill="ecommerce">What are the top 5 products by revenue this quarter?</button>
+      <button class="q-chip" data-fill="ecommerce">What is the average order value by channel?</button>
+      <button class="q-chip" data-fill="ecommerce">What is our cart abandonment rate this week?</button>
+    </div>
+
+    <!-- Everything below is the rest of the original multi page site,
+         condensed and made expandable so tab 3 stays short by default. -->
+    <details class="expand-card">
+      <summary>How it works, six steps</summary>
+      <div class="step-item" style="border-top:none;padding-top:4px;">
+        <div class="step-num">01</div>
+        <div class="step-body"><b>Ask</b><span>Plain English question, no SQL needed.</span></div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">02</div>
+        <div class="step-body"><b>Interpret</b><span>Agent applies your instructions and glossary.</span></div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">03</div>
+        <div class="step-body"><b>Generate</b><span>Gemini writes BigQuery SQL against your connected tables.</span></div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">04</div>
+        <div class="step-body"><b>Execute</b><span>Query runs inside your GCP project, with byte and quota limits.</span></div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">05</div>
+        <div class="step-body"><b>Format</b><span>Answer returns as text, table, or chart. SQL is always shown.</span></div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">06</div>
+        <div class="step-body"><b>Continue</b><span>Session keeps context for the rest of this browser session only.</span></div>
+      </div>
+    </details>
+
+    <details class="expand-card">
+      <summary>Prompt library</summary>
+      <div class="library-list" id="library-ecommerce" style="margin-top:10px;"></div>
+    </details>
+
+    <details class="expand-card">
+      <summary>Limitations, when not to use this</summary>
+      <ul class="want-list" style="margin-top:10px;">
+        <li>Complex multi step statistical modelling, use a data scientist instead</li>
+        <li>Anything needing real time data, this dataset lags 24 hours</li>
+        <li>Recurring reporting a stakeholder checks daily, build a dashboard instead</li>
+        <li>Queries likely to exceed the 3 MB result cap or 8,192 token limit</li>
+      </ul>
+    </details>
+
+  </div>
+
+</div>
+
+<script src="js/tabs.js"></script>
+<script src="js/trendspotter.js"></script>
+<script src="js/ecommerce.js"></script>
+</body>
+</html>
