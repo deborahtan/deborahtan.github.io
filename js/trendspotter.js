@@ -13,7 +13,7 @@
   // CONFIG: set this to your deployed trends-proxy URL once it is live.
   // Until then this tab will show a connection error, same as the
   // ecommerce tab does when previewed off-domain.
-  var TRENDS_PROXY_URL = 'https://trends-proxy-REPLACE-ME.run.app';
+  var TRENDS_PROXY_URL = 'https://trends-proxy-507101719517.us-central1.run.app';
 
   // TRENDS MCP HOOK
   // When a real Trends MCP connector is ready, it plugs in on the SERVER
