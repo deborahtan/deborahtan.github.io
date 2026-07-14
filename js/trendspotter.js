@@ -16,11 +16,10 @@
   var TRENDS_PROXY_URL = 'https://trends-proxy-507101719517.us-central1.run.app';
 
   // TRENDS MCP HOOK
-  // When a real Trends MCP connector is ready, it plugs in on the SERVER
-  // side, inside trends-proxy/server.js, not here. Add it to the
-  // mcp_servers array in that file's Anthropic API call. This flag just
-  // controls the disclaimer text shown to the user.
-  var TRENDS_MCP_CONNECTED = false;
+  // trends-mcp (trendsmcp.ai) is wired in server side, inside
+  // trends-proxy/server.js. This flag just controls the disclaimer
+  // text shown to the user.
+  var TRENDS_MCP_CONNECTED = true;
 
   var dashboardEl = document.getElementById('dashboard');
   var inputEl = document.getElementById('chat-input-trendspotter');
@@ -87,7 +86,9 @@
   }
 
   function buildSentimentSplit(split) {
-    split = split || { positive: 34, mixed: 33, negative: 33 };
+    if (!split || (split.positive == null && split.mixed == null && split.negative == null)) {
+      return '<div class="split-empty">No sentiment data yet, ask a question first.</div>';
+    }
     var total = (split.positive || 0) + (split.mixed || 0) + (split.negative || 0) || 1;
     var pos = Math.round((split.positive || 0) / total * 100);
     var mix = Math.round((split.mixed || 0) / total * 100);
@@ -186,9 +187,10 @@
       );
     }).join('');
 
+    var hasScore = d.barometer_score != null;
     dashboardEl.innerHTML =
       '<div class="gauge-card">' +
-        '<div class="gauge-wrap">' + buildGaugeSvg(d.barometer_score || 0) + '<div class="gauge-score">' + Math.round(d.barometer_score || 0) + '</div></div>' +
+        '<div class="gauge-wrap">' + buildGaugeSvg(hasScore ? d.barometer_score : 0) + '<div class="gauge-score">' + (hasScore ? Math.round(d.barometer_score) : 'N/A') + '</div></div>' +
         '<div class="gauge-mood">' + esc(d.mood_headline || '') + '</div>' +
         '<div class="gauge-desc">' + esc(d.mood_description || '') + '</div>' +
         '<div class="gauge-label">Christmas Spirit Barometer</div>' +
