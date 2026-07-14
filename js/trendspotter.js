@@ -1,260 +1,171 @@
 /* ============================================================
-   TAB 2: CHRISTMAS TRENDSPOTTER
+   trends-proxy
    ------------------------------------------------------------
-   IMPORTANT: this calls a small proxy (trends-proxy/) instead of
-   api.anthropic.com directly. A browser cannot call the Anthropic
-   API directly with a real API key, the key would be exposed to
-   anyone viewing page source. Deploy trends-proxy (same pattern as
-   your existing ca-proxy) and put its URL below.
+   Small Express server that holds the real ANTHROPIC_API_KEY and
+   forwards Christmas Trendspotter requests to the Anthropic API
+   with web search turned on. The browser never sees the key.
+
+   Deploy this the same way you deployed ca-proxy, e.g. Google
+   Cloud Run. See README.md at the repo root for exact steps.
+
+   Required environment variable:
+     ANTHROPIC_API_KEY   your real Anthropic API key
+     ALLOWED_ORIGIN       your GitHub Pages URL, e.g.
+                           https://deborahtan.github.io
    ============================================================ */
-(function () {
-  'use strict';
 
-  // CONFIG: set this to your deployed trends-proxy URL once it is live.
-  // Until then this tab will show a connection error, same as the
-  // ecommerce tab does when previewed off-domain.
-  var TRENDS_PROXY_URL = 'https://trends-proxy-507101719517.us-central1.run.app';
+const express = require('express');
+const cors = require('cors');
 
-  // TRENDS MCP HOOK
-  // trends-mcp (trendsmcp.ai) is wired in server side, inside
-  // trends-proxy/server.js. This flag just controls the disclaimer
-  // text shown to the user.
-  var TRENDS_MCP_CONNECTED = true;
+const app = express();
+app.use(express.json({ limit: '1mb' }));
 
-  var dashboardEl = document.getElementById('dashboard');
-  var inputEl = document.getElementById('chat-input-trendspotter');
-  var sendBtn = document.getElementById('chat-send-trendspotter');
-  var statusEl = document.getElementById('status-line-trendspotter');
-  var dateTagEl = document.getElementById('date-tag');
-  var wordcloudBody = document.getElementById('wordcloud-body');
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://deborahtan.github.io';
+app.use(cors({ origin: ALLOWED_ORIGIN }));
 
-  var isThinking = false;
-  var lastGoodData = null;
-  // In-session memory only. This array lives in a browser tab and resets
-  // on refresh, no database or localStorage involved, matches the brief:
-  // memory from one round to the next in a single session, nothing more.
-  var conversationHistory = [];
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const TRENDS_MCP_API_KEY = process.env.TRENDS_MCP_API_KEY;
+const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 
-  var todayStr = new Date().toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  dateTagEl.textContent = 'Snapshot: ' + todayStr + ' (NZ)';
+const SYSTEM_PROMPT =
+  'You are researching the emotional mood around Christmas grocery shopping ' +
+  'specifically for NEW ZEALAND households, for a Dentsu tool called the ' +
+  'Christmas Trendspotter, used by a grocery retail client. This is a ' +
+  'Southern Hemisphere, mid summer Christmas, beach, BBQs, summer holidays ' +
+  'starting, not the Northern Hemisphere winter version, so search for and ' +
+  'reflect genuinely NZ specific context such as NZ Herald, Stuff, RNZ, and ' +
+  'NZ social discussion, rather than generic global Christmas content.\n\n' +
+  'Also search for what named NZ grocery competitors, specifically ' +
+  'Woolworths NZ, Countdown, Pak n Save, New World, and Foodstuffs, are ' +
+  'visibly doing for Christmas this year: campaigns, offers, meal deals, ' +
+  'click and collect, delivery promotions. Name them specifically if you ' +
+  'find real information, and be honest if search results are thin rather ' +
+  'than inventing detail.\n\n' +
+  'You have a trends-mcp tool available with live search and social trend ' +
+  'data (Google Search, TikTok, Reddit, and others). Use it to pull real ' +
+  'search interest and momentum for Christmas grocery shopping related terms ' +
+  'in addition to web_search, and reflect actual numbers where the tool ' +
+  'returns them rather than estimating.\n\n' +
+  'You must always compute barometer_score and sentiment_split yourself, ' +
+  'as a genuine read of everything you found, never a placeholder or a ' +
+  'default. Work it out like this: weigh up positive signals (excitement, ' +
+  'anticipation, generosity, festive traditions, deals people are happy ' +
+  'about) against negative signals (cost of living stress, time pressure, ' +
+  'overwhelm, complaints) in what you actually found. barometer_score is a ' +
+  '0 to 100 overall Christmas spirit reading, where higher means the mood ' +
+  'skews positive and excited, lower means it skews stressed or flat. ' +
+  'sentiment_split breaks that same read into positive, mixed, and negative ' +
+  'percentages that sum to about 100. Base both on the real balance of what ' +
+  'you found this run, so they should move a little between questions and ' +
+  'over time rather than landing on the same number every time.\n\n' +
+  'Write in a warm, family and household friendly, relatable tone. Still be ' +
+  'honest about real pressure points like cost of living, meal planning ' +
+  'stress, and time pressure, do not sanitize those away, but frame them ' +
+  'with empathy rather than clinical distance.\n\n' +
+  'Write everything in short, punchy headlines with one plain descriptive ' +
+  'sentence underneath. Never use an em dash character anywhere in your ' +
+  'output, use a period or comma instead.\n\n' +
+  'You must respond with ONLY a single JSON object, no other text before or ' +
+  'after it, in exactly this shape:\n' +
+  '{\n' +
+  '  "barometer_score": number 0 to 100,\n' +
+  '  "mood_headline": short punchy 3 to 6 word headline,\n' +
+  '  "mood_description": one plain warm sentence, no em dash,\n' +
+  '  "sentiment_split": positive, mixed, negative as numbers 0 to 100,\n' +
+  '  "what_people_want": four short phrases,\n' +
+  '  "resonant_lines": three short emotionally resonant lines, no em dash,\n' +
+  '  "metrics": four to six items each with label, value 0 to 100, note, no em dash,\n' +
+  '  "competitor_snapshot_headline": short headline,\n' +
+  '  "competitor_snapshot_description": one sentence, no em dash,\n' +
+  '  "value_prop_headline": short headline,\n' +
+  '  "value_prop_description": one sentence, no em dash\n' +
+  '}\n' +
+  'sentiment_split values must sum to approximately 100. On follow up ' +
+  'questions, adjust this same JSON structure to reflect what was asked, ' +
+  'and again respond with ONLY the JSON object, no em dashes anywhere.';
 
-  // Question Bank chips fill the input AND immediately ask, so clicking
-  // one gives a real answer straight away.
-  document.querySelectorAll('[data-fill="trendspotter"]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      inputEl.value = btn.textContent.trim();
-      handleTrendspotterAsk();
-    });
-  });
+app.post('/trend-research', async (req, res) => {
+  try {
+    if (!ANTHROPIC_API_KEY) {
+      return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not set on the server.' });
+    }
+    const messages = req.body.messages || [];
 
-  async function askProxy(userMessage) {
-    conversationHistory.push({ role: 'user', content: userMessage });
+    // ── TRENDS MCP HOOK ──────────────────────────────────────────────
+    // trends-mcp (trendsmcp.ai) is wired in here as a real remote MCP
+    // server, alongside web_search. TRENDS_MCP_API_KEY is the API key
+    // from trendsmcp.ai, set as an env var on this Cloud Run service
+    // (same way ANTHROPIC_API_KEY is set). This feature is in beta on
+    // Anthropic's side, hence the anthropic-beta header below.
+    const tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+    const mcpServers = [];
 
-    var response = await fetch(TRENDS_PROXY_URL + '/trend-research', {
+    if (TRENDS_MCP_API_KEY) {
+      mcpServers.push({
+        type: 'url',
+        url: 'https://api.trendsmcp.ai/mcp',
+        name: 'trends-mcp',
+        authorization_token: TRENDS_MCP_API_KEY
+      });
+      tools.push({ type: 'mcp_toolset', mcp_server_name: 'trends-mcp' });
+    }
+
+    const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: conversationHistory })
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'mcp-client-2025-11-20'
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 1800,
+        system: SYSTEM_PROMPT,
+        messages: messages,
+        tools: tools,
+        mcp_servers: mcpServers
+      })
     });
 
-    if (!response.ok) {
-      var errText = await response.text();
-      conversationHistory.pop();
-      throw new Error('Trends proxy error (' + response.status + '): ' + errText);
+    if (!anthropicResponse.ok) {
+      const errText = await anthropicResponse.text();
+      return res.status(anthropicResponse.status).send(errText);
     }
 
-    var body = await response.json();
-    // Server returns { data: {...parsed json...}, sources: [...], assistantText: "..." }
-    conversationHistory.push({ role: 'assistant', content: body.assistantText || JSON.stringify(body.data) });
-    return { data: body.data, sources: body.sources || [] };
-  }
+    const data = await anthropicResponse.json();
+    const textBlocks = (data.content || [])
+      .filter((b) => b.type === 'text')
+      .map((b) => b.text)
+      .join('\n');
 
-  var esc = window.CA_SHARED.escapeHtml;
-
-  function buildGaugeSvg(score) {
-    var pct = Math.max(0, Math.min(100, score)) / 100;
-    var angle = Math.PI * (1 - pct);
-    var cx = 110, cy = 110, r = 90;
-    var x = cx + r * Math.cos(angle);
-    var y = cy - r * Math.sin(angle);
-    var largeArc = pct > 0.5 ? 1 : 0;
-    return (
-      '<svg class="gauge-svg" viewBox="0 0 220 120">' +
-        '<path d="M 20 110 A 90 90 0 0 1 200 110" fill="none" stroke="#322f29" stroke-width="16" stroke-linecap="round"/>' +
-        '<path d="M 20 110 A 90 90 0 ' + largeArc + ' 1 ' + x.toFixed(1) + ' ' + y.toFixed(1) + '" fill="none" stroke="#e0b78a" stroke-width="16" stroke-linecap="round"/>' +
-      '</svg>'
-    );
-  }
-
-  function buildSentimentSplit(split) {
-    if (!split || (split.positive == null && split.mixed == null && split.negative == null)) {
-      return '<div class="split-empty">No sentiment data yet, ask a question first.</div>';
-    }
-    var total = (split.positive || 0) + (split.mixed || 0) + (split.negative || 0) || 1;
-    var pos = Math.round((split.positive || 0) / total * 100);
-    var mix = Math.round((split.mixed || 0) / total * 100);
-    var neg = Math.max(0, 100 - pos - mix);
-    return (
-      '<div class="split-bar">' +
-        '<div class="split-seg" style="width:' + pos + '%;background:#a8b89c;">' + (pos >= 10 ? pos + '%' : '') + '</div>' +
-        '<div class="split-seg" style="width:' + mix + '%;background:#e0b78a;">' + (mix >= 10 ? mix + '%' : '') + '</div>' +
-        '<div class="split-seg" style="width:' + neg + '%;background:#d9a8b3;">' + (neg >= 10 ? neg + '%' : '') + '</div>' +
-      '</div>' +
-      '<div class="split-legend">' +
-        '<span><span class="dot" style="background:#a8b89c;"></span>Positive, ' + pos + '%</span>' +
-        '<span><span class="dot" style="background:#e0b78a;"></span>Mixed, ' + mix + '%</span>' +
-        '<span><span class="dot" style="background:#d9a8b3;"></span>Negative, ' + neg + '%</span>' +
-      '</div>'
-    );
-  }
-
-  function buildSourcesCard(sources) {
-    var mcpNote = TRENDS_MCP_CONNECTED
-      ? 'Trends MCP data sources'
-      : 'Research sources (Trends MCP not connected yet, this is Claude web research)';
-    if (!sources || !sources.length) {
-      return (
-        '<details class="expand-card">' +
-          '<summary>' + mcpNote + '</summary>' +
-          '<div class="source-empty">No specific sources were captured for this answer.</div>' +
-        '</details>'
-      );
-    }
-    var items = sources.map(function (s) {
-      return '<li><a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + '</a></li>';
-    }).join('');
-    return '<details class="expand-card"><summary>' + mcpNote + ' (' + sources.length + ')</summary><ul class="source-list">' + items + '</ul></details>';
-  }
-
-  // ── Word cloud ──────────────────────────────────────────────────────
-  // Built entirely client side from the same JSON the dashboard renders.
-  // No extra API call, no extra key needed for this part.
-  var STOPWORDS = ['the','a','an','and','or','but','to','of','in','on','for','with','is','are','was','were','be','this','that','it','as','at','by','from','their','they','has','have','had','not','no','so','if','than','then','into','about','more','most','over','under','out','up','down','you','your','we','our','can','will','just','like','get','all','also','which','who','what','how','why','when','where','still','some','only','while','each'];
-
-  function buildWordCloud(d) {
-    var textPieces = [];
-    if (d.mood_headline) textPieces.push(d.mood_headline);
-    if (d.mood_description) textPieces.push(d.mood_description);
-    if (d.competitor_snapshot_headline) textPieces.push(d.competitor_snapshot_headline);
-    if (d.competitor_snapshot_description) textPieces.push(d.competitor_snapshot_description);
-    if (d.value_prop_headline) textPieces.push(d.value_prop_headline);
-    if (d.value_prop_description) textPieces.push(d.value_prop_description);
-    (d.what_people_want || []).forEach(function (w) { textPieces.push(w); });
-    (d.resonant_lines || []).forEach(function (l) { textPieces.push(l); });
-    (d.metrics || []).forEach(function (m) { if (m.label) textPieces.push(m.label); if (m.note) textPieces.push(m.note); });
-
-    var counts = {};
-    textPieces.join(' ').toLowerCase().split(/[^a-z']+/).forEach(function (w) {
-      w = w.trim();
-      if (w.length < 3) return;
-      if (STOPWORDS.indexOf(w) !== -1) return;
-      counts[w] = (counts[w] || 0) + 1;
+    const sources = [];
+    (data.content || []).forEach((block) => {
+      if (block.type === 'web_search_tool_result' && Array.isArray(block.content)) {
+        block.content.forEach((item) => {
+          if (item.url) sources.push({ title: item.title || item.url, url: item.url });
+        });
+      }
     });
 
-    var entries = Object.keys(counts).map(function (w) { return { word: w, count: counts[w] }; });
-    entries.sort(function (a, b) { return b.count - a.count; });
-    entries = entries.slice(0, 30);
-
-    if (!entries.length) {
-      wordcloudBody.innerHTML = '<span class="wc-empty">Not enough words yet, ask a question first.</span>';
-      return;
+    const noEmDash = textBlocks.split(String.fromCharCode(8212)).join(',');
+    const jsonMatch = noEmDash.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return res.status(502).json({ error: 'Could not find a JSON object in the model response.' });
     }
 
-    var maxCount = entries[0].count;
-    var colorClasses = ['c1', 'c2', 'c3'];
-    wordcloudBody.innerHTML = entries.map(function (e, i) {
-      var scale = e.count / maxCount; // 0 to 1
-      var fontSize = 12 + Math.round(scale * 26); // 12px to 38px
-      var cls = colorClasses[i % colorClasses.length];
-      return '<span class="wc-word ' + cls + '" style="font-size:' + fontSize + 'px;">' + esc(e.word) + '</span>';
-    }).join('');
+    res.json({
+      data: JSON.parse(jsonMatch[0]),
+      sources: sources,
+      assistantText: textBlocks
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
+});
 
-  function renderDashboard(result) {
-    var d = result.data;
-    lastGoodData = result;
+app.get('/', (req, res) => res.send('trends-proxy is running'));
 
-    var wantItems = (d.what_people_want || []).map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('');
-    var lineItems = (d.resonant_lines || []).map(function (line) { return '<div class="resonant-line">"' + esc(line) + '"</div>'; }).join('');
-    var metricTiles = (d.metrics || []).map(function (m) {
-      var val = Math.max(0, Math.min(100, m.value || 0));
-      return (
-        '<div class="metric-tile">' +
-          '<div class="metric-label">' + esc(m.label) + '</div>' +
-          '<div class="metric-bar-bg"><div class="metric-bar-fill" style="width:' + val + '%"></div></div>' +
-          '<div class="metric-value">' + val + ' / 100</div>' +
-          '<div class="metric-note">' + esc(m.note || '') + '</div>' +
-        '</div>'
-      );
-    }).join('');
-
-    var hasScore = d.barometer_score != null;
-    dashboardEl.innerHTML =
-      '<div class="gauge-card">' +
-        '<div class="gauge-wrap">' + buildGaugeSvg(hasScore ? d.barometer_score : 0) + '<div class="gauge-score">' + (hasScore ? Math.round(d.barometer_score) : 'N/A') + '</div></div>' +
-        '<div class="gauge-mood">' + esc(d.mood_headline || '') + '</div>' +
-        '<div class="gauge-desc">' + esc(d.mood_description || '') + '</div>' +
-        '<div class="gauge-label">Christmas Spirit Barometer</div>' +
-      '</div>' +
-      '<div class="split-card"><div class="card-label">Sentiment Split</div>' + buildSentimentSplit(d.sentiment_split) + '</div>' +
-      buildSourcesCard(result.sources) +
-      '<div class="card competitor-card">' +
-        '<div class="card-label">What Competitors Are Doing</div>' +
-        '<div class="headline">' + esc(d.competitor_snapshot_headline || '') + '</div>' +
-        '<p class="desc">' + esc(d.competitor_snapshot_description || '') + '</p>' +
-      '</div>' +
-      '<div class="card value-card">' +
-        '<div class="card-label">Where Brands Can Help</div>' +
-        '<div class="headline">' + esc(d.value_prop_headline || '') + '</div>' +
-        '<p class="desc">' + esc(d.value_prop_description || '') + '</p>' +
-      '</div>' +
-      '<div class="card">' +
-        '<div class="card-label">What People Actually Want This Christmas</div>' +
-        '<ul class="want-list">' + wantItems + '</ul>' +
-      '</div>' +
-      '<div class="card">' +
-        '<div class="card-label">Emotionally Resonant Lines</div>' +
-        '<div class="lines-grid">' + lineItems + '</div>' +
-      '</div>' +
-      '<div class="card-label" style="margin: 4px 0 10px;">Barometer Metrics</div>' +
-      '<div class="metrics-grid">' + metricTiles + '</div>';
-
-    buildWordCloud(d);
-  }
-
-  async function runInitialResearch() {
-    statusEl.textContent = 'Researching...';
-    try {
-      var result = await askProxy('Research the current emotional mood around Christmas grocery shopping for New Zealand households, including what named grocery competitors are doing, and build the initial Christmas Trendspotter dashboard.');
-      renderDashboard(result);
-      statusEl.textContent = '';
-    } catch (err) {
-      dashboardEl.innerHTML = '<div class="error-box">Something went wrong: ' + esc(err.message) + '. If TRENDS_PROXY_URL in js/trendspotter.js is still a placeholder, deploy trends-proxy first, see README.md.</div>';
-      statusEl.textContent = '';
-      console.error(err);
-    }
-  }
-
-  async function handleTrendspotterAsk() {
-    var question = inputEl.value.trim();
-    if (!question || isThinking) return;
-    isThinking = true;
-    sendBtn.disabled = true;
-    inputEl.value = '';
-    statusEl.textContent = 'Updating the dashboard...';
-    try {
-      var result = await askProxy(question);
-      renderDashboard(result);
-      statusEl.textContent = 'Updated.';
-    } catch (err) {
-      statusEl.textContent = 'Something went wrong: ' + err.message;
-      console.error(err);
-      if (lastGoodData) renderDashboard(lastGoodData);
-    }
-    isThinking = false;
-    sendBtn.disabled = false;
-  }
-
-  sendBtn.addEventListener('click', handleTrendspotterAsk);
-  inputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') handleTrendspotterAsk(); });
-  runInitialResearch();
-}());
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log('trends-proxy listening on ' + PORT));
