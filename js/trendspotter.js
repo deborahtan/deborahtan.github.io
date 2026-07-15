@@ -50,22 +50,44 @@
   async function askProxy(userMessage) {
     conversationHistory.push({ role: 'user', content: userMessage });
 
-    var response = await fetch(TRENDS_PROXY_URL + '/trend-research', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: conversationHistory })
-    });
+    var maxAttempts = 3;
 
-    if (!response.ok) {
-      var errText = await response.text();
-      conversationHistory.pop();
-      throw new Error('Trends proxy error (' + response.status + '): ' + errText);
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        var response = await fetch(TRENDS_PROXY_URL + '/trend-research', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: conversationHistory })
+        });
+
+        if (!response.ok) {
+          var errText = await response.text();
+          var isRetryable = response.status === 502 || response.status === 503 || response.status === 504;
+          if (isRetryable && attempt < maxAttempts) {
+            console.warn('Trends proxy returned ' + response.status + ', retrying (' + attempt + '/' + maxAttempts + ')...');
+            statusEl.textContent = 'That request had a hiccup, retrying...';
+            await new Promise(function (resolve) { setTimeout(resolve, attempt * 1000); });
+            continue;
+          }
+          conversationHistory.pop();
+          throw new Error('Trends proxy error (' + response.status + '): ' + errText);
+        }
+
+        var body = await response.json();
+        // Server returns { data: {...parsed json...}, sources: [...], assistantText: "..." }
+        conversationHistory.push({ role: 'assistant', content: body.assistantText || JSON.stringify(body.data) });
+        return { data: body.data, sources: body.sources || [] };
+      } catch (err) {
+        // Network-level failures (not HTTP error responses) also get one retry.
+        if (attempt < maxAttempts && err.message.indexOf('Trends proxy error') === -1) {
+          console.warn('Network error talking to trends-proxy, retrying (' + attempt + '/' + maxAttempts + ')...', err.message);
+          statusEl.textContent = 'That request had a hiccup, retrying...';
+          await new Promise(function (resolve) { setTimeout(resolve, attempt * 1000); });
+          continue;
+        }
+        throw err;
+      }
     }
-
-    var body = await response.json();
-    // Server returns { data: {...parsed json...}, sources: [...], assistantText: "..." }
-    conversationHistory.push({ role: 'assistant', content: body.assistantText || JSON.stringify(body.data) });
-    return { data: body.data, sources: body.sources || [] };
   }
 
   var esc = window.CA_SHARED.escapeHtml;
