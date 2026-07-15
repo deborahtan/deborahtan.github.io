@@ -1,6 +1,7 @@
 # Dentsu Conversational Analytics
 
 Single page site, three tabs: Home, Christmas Trendspotter, Ecommerce Analytics Agent.
+Crucial note: this is an internal tool used to experiment with Trends MCP and Claude effort to research trends, used to test key features and overall insights. This serves as a demo. 
 
 ## Structure
 
