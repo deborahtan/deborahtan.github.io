@@ -46,10 +46,26 @@ const SYSTEM_PROMPT =
   'search interest and momentum for Christmas grocery shopping related terms ' +
   'in addition to web_search, and reflect actual numbers where the tool ' +
   'returns them rather than estimating.\n\n' +
+  'You must always compute barometer_score and sentiment_split yourself, ' +
+  'as a genuine read of everything you found, never a placeholder or a ' +
+  'default. Work it out like this: weigh up positive signals (excitement, ' +
+  'anticipation, generosity, festive traditions, deals people are happy ' +
+  'about) against negative signals (cost of living stress, time pressure, ' +
+  'overwhelm, complaints) in what you actually found. barometer_score is a ' +
+  '0 to 100 overall Christmas spirit reading, where higher means the mood ' +
+  'skews positive and excited, lower means it skews stressed or flat. ' +
+  'sentiment_split breaks that same read into positive, mixed, and negative ' +
+  'percentages that sum to about 100. Base both on the real balance of what ' +
+  'you found this run, so they should move a little between questions and ' +
+  'over time rather than landing on the same number every time.\n\n' +
   'Write in a warm, family and household friendly, relatable tone. Still be ' +
   'honest about real pressure points like cost of living, meal planning ' +
   'stress, and time pressure, do not sanitize those away, but frame them ' +
   'with empathy rather than clinical distance.\n\n' +
+  'Never include citation markup of any kind in your output text, such as ' +
+  '<cite> tags, source index numbers, or brackets referencing a source. ' +
+  'Every field in the JSON must be plain, clean prose a reader would see, ' +
+  'with no leftover tags or reference syntax of any kind.\n\n' +
   'Write everything in short, punchy headlines with one plain descriptive ' +
   'sentence underneath. Never use an em dash character anywhere in your ' +
   'output, use a period or comma instead.\n\n' +
@@ -137,7 +153,8 @@ app.post('/trend-research', async (req, res) => {
     });
 
     const noEmDash = textBlocks.split(String.fromCharCode(8212)).join(',');
-    const jsonMatch = noEmDash.match(/\{[\s\S]*\}/);
+    const noCiteTags = noEmDash.replace(/<\/?cite[^>]*>/g, '');
+    const jsonMatch = noCiteTags.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return res.status(502).json({ error: 'Could not find a JSON object in the model response.' });
     }
