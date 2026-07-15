@@ -88,28 +88,32 @@
 
       var reader = r.body.getReader();
       var decoder = new TextDecoder();
-      var buffer = '';
-      var answer = '';
-      var bubble = appendEcomMessage('agent', '');
+      var raw = '';
+      var bubble = appendEcomMessage('agent', 'Thinking...');
 
       while (true) {
         var chunk = await reader.read();
         if (chunk.done) break;
-        buffer += decoder.decode(chunk.value, { stream: true });
-        var lines = buffer.split('\n');
-        buffer = lines.pop();
-        for (var i = 0; i < lines.length; i++) {
-          var line = lines[i];
-          if (!line.trim()) continue;
-          var msg;
-          try { msg = JSON.parse(line); } catch (e) { continue; }
-          var sm = msg.systemMessage;
-          if (sm && sm.text && sm.text.textType !== 'THOUGHT') {
-            answer += sm.text.text || '';
-            bubble.textContent = answer;
-          }
-        }
+        raw += decoder.decode(chunk.value, { stream: true });
       }
+
+      // The API returns one big JSON array of message objects, not
+      // newline-delimited JSON, so parse it whole rather than line by line.
+      var answer = '';
+      try {
+        var messages = JSON.parse(raw);
+        messages.forEach(function (item) {
+          var sm = item.systemMessage;
+          if (sm && sm.text && sm.text.textType === 'FINAL_RESPONSE' && Array.isArray(sm.text.parts)) {
+            answer += sm.text.parts.join(' ') + '\n\n';
+          }
+        });
+      } catch (parseErr) {
+        console.error('Could not parse ca-proxy response as JSON', parseErr);
+      }
+
+      bubble.textContent = answer.trim() || 'No answer text was returned, check the raw response in the console.';
+      if (!answer.trim()) console.log('Raw ca-proxy response:', raw);
       ecomStatusEl.textContent = '';
     } catch (err) {
       appendEcomMessage('agent', 'Connection error: ' + err.message + '. Expected if this is not running on your approved GitHub Pages domain.');
